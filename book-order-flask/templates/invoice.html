@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bookstore Invoice · Order {{ order.order_id }}</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #f3f5f7; color: #16232d; font: 16px/1.5 Arial, sans-serif; }
+    main { max-width: 880px; margin: 32px auto; padding: 36px; background: #fff; }
+    h1 { margin: 0 0 4px; font-size: 28px; }
+    header p { margin: 0; color: #485767; }
+    dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 24px; margin: 28px 0; }
+    dt { font-weight: bold; }
+    dd { margin: 0; overflow-wrap: anywhere; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 10px 8px; text-align: left; border-bottom: 1px solid #cad1d9; }
+    th { border-top: 2px solid #16232d; }
+    .number { text-align: right; white-space: nowrap; }
+    tfoot th { padding-top: 16px; border-top: 2px solid #16232d; border-bottom: 0; }
+    @media print {
+      body { background: #fff; }
+      main { margin: 0; padding: 0; max-width: none; }
+      tr { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Bookstore Invoice</h1>
+      <p>Order {{ order.order_id }}</p>
+    </header>
+    <dl>
+      <dt>Order date (UTC)</dt>
+      <dd>{{ order.created_at or "—" }}</dd>
+      <dt>Customer</dt>
+      <dd>{{ order.username }}</dd>
+      <dt>Email</dt>
+      <dd>{{ order.email }}</dd>
+      <dt>Payment status</dt>
+      <dd>{{ order.payment_status }}</dd>
+    </dl>
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Title</th>
+          <th scope="col">Author</th>
+          <th scope="col">Type</th>
+          <th scope="col" class="number">Quantity</th>
+          <th scope="col" class="number">Unit price</th>
+          <th scope="col" class="number">Line total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in order["items"] %}
+        <tr>
+          <td>{{ item.book_title }}</td>
+          <td>{{ item.author }}</td>
+          <td>{{ item.transaction_type }}</td>
+          <td class="number">{{ item.quantity }}</td>
+          <td class="number">${{ "{:,.2f}".format(item.unit_price) }}</td>
+          <td class="number">${{ "{:,.2f}".format(item.line_total) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        {% if order.payment_status == "Paid" %}
+        <tr>
+          <th scope="row" colspan="5">Order total</th>
+          <th class="number">${{ "{:,.2f}".format(order.total_amount) }}</th>
+        </tr>
+        {% endif %}
+        <tr>
+          <th scope="row" colspan="5">Total amount due</th>
+          <th class="number">${{ "{:,.2f}".format(order.total_amount if order.payment_status == "Pending" else 0) }}</th>
+        </tr>
+      </tfoot>
+    </table>
+  </main>
+</body>
+</html>

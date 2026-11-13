@@ -21,6 +21,7 @@ target/
 bills/
 *.html
 !templates/*.html
+!book-order-flask/templates/invoice.html
 db-data/
 
 # IDEs & OS

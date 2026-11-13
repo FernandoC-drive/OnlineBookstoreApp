@@ -1,0 +1,1 @@
+-r ../client-customer-qt/requirements.txt
