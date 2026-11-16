@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import QHBoxLayout, QLineEdit, QSpinBox, QSplitter, QVBoxLa
 from desktop_common.widgets import (
     InvoiceDialog, ReviewDialog, button, fill_table, label, money, selected_row, show_error, surface, table,
 )
+from shared_ui.theme import style_transaction_badges
 
 
 @dataclass
@@ -45,9 +46,7 @@ class CatalogView(QWidget):
         panes.setHandleWidth(10)
         panes.addWidget(self._build_books())
         panes.addWidget(self._build_cart())
-        panes.setStretchFactor(0, 3)
-        panes.setStretchFactor(1, 2)
-        panes.setSizes([740, 455])
+        panes.setSizes([780, 420])
         layout.addWidget(panes)
         self._update_controls()
 
@@ -100,11 +99,12 @@ class CatalogView(QWidget):
         card.setMinimumWidth(370)
         layout.addWidget(label("Shopping cart", "heading"))
         self.cart_table = table(("Title", "Type", "Qty", "Unit price", "Subtotal"))
+        style_transaction_badges(self.cart_table, 1)
         self.cart_table.itemSelectionChanged.connect(self._update_controls)
         layout.addWidget(self.cart_table, 1)
 
         actions = QHBoxLayout()
-        self.remove_button = button("Remove Selected", self.remove_selected)
+        self.remove_button = button("Remove Selected", self.remove_selected, "danger")
         self.clear_button = button("Clear Cart", self.clear_cart)
         actions.addWidget(self.remove_button)
         actions.addWidget(self.clear_button)
@@ -117,7 +117,7 @@ class CatalogView(QWidget):
         self.total_amount = label(money(0), "total")
         total.addWidget(self.total_amount)
         layout.addLayout(total)
-        self.checkout_button = button("Checkout && Place Order", self.checkout, "primary")
+        self.checkout_button = button("Checkout && Place Order", self.checkout, "success")
         self.checkout_button.setMinimumHeight(39)
         layout.addWidget(self.checkout_button)
         return card

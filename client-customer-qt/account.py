@@ -6,7 +6,10 @@ from PyQt6.QtWidgets import (
     QTabWidget, QVBoxLayout, QWidget,
 )
 
-from desktop_common.widgets import button, fill_table, label, local_date, money, selected_row, show_error, surface, table, text_browser
+from desktop_common.widgets import (
+    button, fill_table, invoice_browser, label, local_date, money, selected_row, show_error, surface, table,
+)
+from shared_ui.theme import style_invoice_preview
 
 
 class AuthView(QWidget):
@@ -20,8 +23,9 @@ class AuthView(QWidget):
         layout.setContentsMargins(20, 20, 20, 20)
         layout.addStretch(1)
         card, card_layout = surface()
-        card.setFixedWidth(476)
+        card.setFixedWidth(440)
         card_layout.setContentsMargins(28, 24, 28, 24)
+        card_layout.setSpacing(12)
         card_layout.addWidget(label("Online Bookstore", "hero"))
         card_layout.addWidget(label("Customer accounts", "muted"))
         card_layout.addSpacing(6)
@@ -162,7 +166,7 @@ class ProfileView(QWidget):
         preview_card.setMinimumWidth(270)
         self.preview_heading = label("Invoice preview", "heading")
         preview.addWidget(self.preview_heading)
-        self.preview = text_browser()
+        self.preview = invoice_browser()
         self.preview.setPlaceholderText("Select an order to view its invoice.")
         preview.addWidget(self.preview, 1)
         panes.addWidget(preview_card)
@@ -211,7 +215,7 @@ class ProfileView(QWidget):
                 order["order_id"], local_date(order["created_at"]), money(order["total_amount"]),
                 order["payment_status"], summary,
             ))
-        fill_table(self.order_table, rows, numeric_columns=(0, 2))
+        fill_table(self.order_table, rows, numeric_columns=(0, 2), status_column=3)
         if orders:
             self.order_table.selectRow(0)
         else:
@@ -224,7 +228,7 @@ class ProfileView(QWidget):
         if 0 <= row < len(self.orders):
             order = self.orders[row]
             self.preview_heading.setText(f"Invoice · Order {order['order_id']}")
-            self.preview.setHtml(order["bill_html_content"])
+            style_invoice_preview(self.preview, order["bill_html_content"])
         else:
             self.preview_heading.setText("Invoice preview")
             self.preview.clear()

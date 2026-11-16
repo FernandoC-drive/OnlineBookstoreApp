@@ -1,4 +1,4 @@
-"""Exercise the live Java and Flask services with uniquely named test books."""
+"""Exercise the live Java and Flask services with temporary catalog entries."""
 
 from datetime import date, timedelta
 from decimal import Decimal
@@ -7,6 +7,8 @@ from time import perf_counter
 from uuid import uuid4
 
 import requests
+from bson import ObjectId
+from pymongo import MongoClient
 
 from service import PROJECT_ROOT, load_settings
 
@@ -62,31 +64,36 @@ def check_role_rejections(api, customer, manager, book_id):
         api.call(method, path, 403, token=customer)
 
 
-def check_flask(api, customer, manager):
+def check_flask(api, customer, manager, book_ids):
     customer_token, manager_token = customer["token"], manager["token"]
-    suffix = uuid4().hex
-    author = f"QA Author {suffix}"
+    author = "Andrew Hunt & David Thomas"
     buy_fields = {
-        "title": f"E2E Buy & <Print> [{suffix}]",
+        "title": "The Pragmatic Programmer",
         "author": author,
         "buy_price": 12.35,
         "rent_price": 2.50,
         "available_copies": 4,
     }
-    rent_fields = {**buy_fields, "title": f"E2E Rental {suffix}", "rent_price": 3.25, "available_copies": 2}
+    rent_fields = {
+        **buy_fields, "title": "Design Patterns", "author": "Erich Gamma, Richard Helm, Ralph Johnson & John Vlissides",
+        "rent_price": 3.25, "available_copies": 2,
+    }
     buy_book = api.call("POST", "/api/manager/books", 201, token=manager_token, json=buy_fields)
+    book_ids.append(ObjectId(buy_book["id"]))
     rent_book = api.call("POST", "/api/manager/books", 201, token=manager_token, json=rent_fields)
+    book_ids.append(ObjectId(rent_book["id"]))
     buy_id, rent_id = buy_book["id"], rent_book["id"]
+    fixture_ids = {buy_id, rent_id}
     assert buy_book["available_copies"] == 4 and buy_book["reviews"] == []
     check_role_rejections(api, customer_token, manager_token, buy_id)
 
     results = api.call("GET", "/api/books", 200, token=customer_token)["books"]
     assert {buy_id, rent_id} <= {book["id"] for book in results}
     results = api.call("GET", "/api/books", 200, token=manager_token, params={"q": author.upper()})["books"]
-    assert {book["id"] for book in results} == {buy_id, rent_id}
+    assert {book["id"] for book in results} & fixture_ids == {buy_id}
     results = api.call("GET", "/api/books", 200, token=customer_token,
                        params={"q": buy_fields["title"].lower()})["books"]
-    assert [book["id"] for book in results] == [buy_id]
+    assert {book["id"] for book in results} & fixture_ids == {buy_id}
 
     review_url = f"/api/books/{buy_id}/reviews"
     api.call("POST", review_url, 400, token=customer_token, json={"rating": True, "comment": "Invalid rating"})
@@ -105,8 +112,10 @@ def check_flask(api, customer, manager):
              json={"items": [buy_item, {**rent_item, "quantity": 3}]})
     api.call("POST", "/api/orders", 409, token=customer_token,
              json={"items": [buy_item, {**buy_item, "transaction_type": "RENT", "quantity": 4}]})
-    results = api.call("GET", "/api/books", 200, token=customer_token, params={"q": author})["books"]
-    assert {book["id"]: book["available_copies"] for book in results} == {buy_id: 5, rent_id: 2}
+    results = api.call("GET", "/api/books", 200, token=customer_token)["books"]
+    assert {book["id"]: book["available_copies"] for book in results if book["id"] in fixture_ids} == {
+        buy_id: 5, rent_id: 2,
+    }
 
     checkout = api.call("POST", "/api/orders", 201, token=customer_token, json={"items": [buy_item, rent_item]})
     order_id = checkout["order_id"]
@@ -118,11 +127,14 @@ def check_flask(api, customer, manager):
     pending_html = bill_file.read_text(encoding="utf-8")
     assert pending_html == checkout["bill_html_content"]
     assert all(text in pending_html for text in (
-        f"Order {order_id}", escape(buy_fields["title"]), customer["username"],
+        f"Order {order_id}", escape(buy_fields["title"]), escape(author), customer["username"],
         customer["email"], "BUY", "RENT", "$27.95", "<dd>Pending</dd>",
+        "background: #ffffff", "color: #111111", "Total amount due",
     ))
-    results = api.call("GET", "/api/books", 200, token=manager_token, params={"q": author})["books"]
-    assert {book["id"]: book["available_copies"] for book in results} == {buy_id: 3, rent_id: 1}
+    results = api.call("GET", "/api/books", 200, token=manager_token)["books"]
+    assert {book["id"]: book["available_copies"] for book in results if book["id"] in fixture_ids} == {
+        buy_id: 3, rent_id: 1,
+    }
 
     history = api.call("GET", "/api/orders/my-history", 200, token=customer_token)
     order = find_order(history, order_id)
@@ -171,19 +183,29 @@ def check_flask(api, customer, manager):
 
 
 def main():
-    with requests.Session() as session:
+    settings = load_settings()
+    with (
+        requests.Session() as session,
+        MongoClient(settings["MONGO_URI"], serverSelectionTimeoutMS=5000) as mongo,
+    ):
         session.trust_env = False
         api = ApiChecks(session)
+        books = mongo[settings["MONGO_DB"]].books
+        book_ids = []
         tokens = []
         try:
             customer = api.login("customer1", "password123", "CUSTOMER")
             tokens.append(customer["token"])
             manager = api.login("manager1", "admin123", "MANAGER")
             tokens.append(manager["token"])
-            check_flask(api, customer, manager)
+            check_flask(api, customer, manager, book_ids)
         finally:
-            for token in tokens:
-                api.call("POST", "/api/users/logout", 200, token=token, java=True)
+            try:
+                if book_ids:
+                    books.delete_many({"_id": {"$in": book_ids}})
+            finally:
+                for token in tokens:
+                    api.call("POST", "/api/users/logout", 200, token=token, java=True)
 
         api.call("GET", "/api/books", 401, token=customer["token"])
         elapsed, method, path, service = max(api.timings)

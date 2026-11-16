@@ -33,7 +33,7 @@ class BookForm(QWidget):
             field.setAccessibleName(name)
             form.addRow(name, field)
         layout.addLayout(form)
-        self.submit_button = button(action, submit, "primary")
+        self.submit_button = button(action, submit, "success")
         layout.addWidget(self.submit_button)
         layout.addStretch()
 

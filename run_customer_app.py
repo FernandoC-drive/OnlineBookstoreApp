@@ -96,28 +96,29 @@ def ensure_services(settings, python):
     return started
 
 
-def launch_client(client_name):
-    client_dir = ROOT / f"client-{client_name}-qt"
+def launch_app(app, launcher, name):
     venv_python = VENV / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
     if venv_python.is_file() and Path(sys.prefix).resolve() != VENV.resolve():
-        launcher = ROOT / f"run_{client_name}_app.py"
-        return subprocess.call([str(venv_python), str(launcher)], cwd=ROOT)
+        return subprocess.call([str(venv_python), str(ROOT / launcher)], cwd=ROOT)
 
     try:
         from dotenv import dotenv_values
     except ImportError:
-        print(f"Install the desktop requirements from {client_dir / 'requirements.txt'}.",
+        print(f"Install the desktop requirements from {ROOT / 'client-customer-qt' / 'requirements.txt'}.",
               file=sys.stderr)
         return 1
 
     settings = {**dotenv_values(ROOT / ".env"), **os.environ}
     try:
         ensure_services(settings, sys.executable)
-        app = client_dir / f"{client_name}_app.py"
-        return subprocess.call([sys.executable, str(app)], cwd=ROOT)
+        return subprocess.call([sys.executable, str(ROOT / app)], cwd=ROOT)
     except (OSError, RuntimeError, subprocess.CalledProcessError) as error:
-        print(f"Could not launch the {client_name} app. {error}", file=sys.stderr)
+        print(f"Could not launch {name}. {error}", file=sys.stderr)
         return 1
+
+
+def launch_client(client_name):
+    return launch_app(f"client-{client_name}-qt/{client_name}_app.py", f"run_{client_name}_app.py", f"the {client_name} app")
 
 
 if __name__ == "__main__":

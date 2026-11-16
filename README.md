@@ -37,14 +37,22 @@ The manager requirements include the customer requirements, so one install cover
 
 ## Launch the desktop apps
 
-Run the desired command from the repository root. The launchers reuse healthy services, start any missing services in the background, and wait for them before opening the app. If the Java JAR is missing, the launcher builds it with Maven.
+From the repository root, open the bookstore portal with one command.
+
+```powershell
+.\.venv\Scripts\python.exe run_bookstore.py
+```
+
+The portal shows live service status and opens the Customer and Manager apps in independent windows. You can open both from the same portal. Each app has its own sign-in and enforces its account role.
+
+To open either app directly, use its standalone launcher.
 
 ```powershell
 .\.venv\Scripts\python.exe run_customer_app.py
 .\.venv\Scripts\python.exe run_manager_app.py
 ```
 
-Use separate terminals to keep both windows open. Both launchers log to `db-data/customer-launcher/`. Open saved invoices from `bills/` in the default browser for printing.
+All three launchers reuse healthy services, start any missing services in the background, and wait for them to respond. If the Java JAR is missing, the launcher builds it with Maven. Service logs are in `db-data/customer-launcher/`. Open saved invoices from `bills/` in the default browser for printing.
 
 | App | Seeded username | Seeded password |
 | --- | --- | --- |
@@ -57,6 +65,7 @@ With Java and Flask running against the seeded databases, use a separate PowerSh
 
 ```powershell
 $env:QT_QPA_PLATFORM = 'offscreen'
+.\.venv\Scripts\python.exe test_portal_gui.py
 .\.venv\Scripts\python.exe client-customer-qt/test_customer_gui.py
 .\.venv\Scripts\python.exe client-manager-qt/test_manager_gui.py
 Remove-Item Env:QT_QPA_PLATFORM

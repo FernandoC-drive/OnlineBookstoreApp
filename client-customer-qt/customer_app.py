@@ -15,6 +15,7 @@ from account import AuthView, ProfileView
 from catalog import CatalogView
 from desktop_common.api import ApiClient
 from desktop_common.widgets import button, create_application, label, show_error
+from shared_ui.theme import style_pill
 
 
 class CustomerWindow(QMainWindow):
@@ -59,9 +60,10 @@ class CustomerWindow(QMainWindow):
         top_layout.setSpacing(14)
         top_layout.addWidget(label("Online Bookstore", "brand"))
         top_layout.addStretch()
-        self.account_name = label("", "accountName")
+        self.account_name = label()
+        style_pill(self.account_name, "customer")
         top_layout.addWidget(self.account_name)
-        self.logout_button = button("Logout", self.logout, "header")
+        self.logout_button = button("Logout", self.logout, "danger")
         top_layout.addWidget(self.logout_button)
         layout.addWidget(top)
 
@@ -113,7 +115,7 @@ class CustomerWindow(QMainWindow):
         self.auth.set_busy(False)
         self.token = user["token"]
         self._session_generation += 1
-        self.account_name.setText(user["username"])
+        self.account_name.setText(f"CUSTOMER: {user['username']}")
         self.pages.setCurrentWidget(self.dashboard)
         self.catalog.refresh()
 

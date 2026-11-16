@@ -90,7 +90,7 @@ class CustomerSmokeTest(unittest.TestCase):
         auth.tabs.setCurrentIndex(0)
         self.sign_in(username, "registration-test-password")
         self.wait_for(lambda: self.window.catalog.book_table.rowCount() > 0, "New account could not log in")
-        self.assertEqual(self.window.account_name.text(), username)
+        self.assertEqual(self.window.account_name.text(), f"CUSTOMER: {username}")
         self.assertTrue(self.window.token)
 
     def test_registration_rejects_invalid_input_and_unexpected_error_bodies(self):

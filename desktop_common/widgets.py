@@ -6,68 +6,16 @@ from pathlib import Path
 import sys
 
 from PyQt6.QtCore import Qt, QUrl, pyqtSignal
-from PyQt6.QtGui import QDesktopServices, QFontDatabase
+from PyQt6.QtGui import QDesktopServices
 from PyQt6.QtWidgets import (
     QAbstractItemView, QApplication, QDialog, QFormLayout, QFrame, QHBoxLayout, QHeaderView,
     QLabel, QMessageBox, QPlainTextEdit, QPushButton, QSpinBox,
     QTableWidget, QTableWidgetItem, QTextBrowser, QVBoxLayout,
 )
 
+from shared_ui.theme import apply_modern_theme, style_invoice_preview, style_status_cell
+
 from .api import PROJECT_ROOT
-
-
-STYLESHEET = """
-QWidget { color: #233a32; }
-QMainWindow, QDialog, QWidget#appPage { background: #f4f3ed; }
-QFrame#surface { background: #ffffff; border: 1px solid #dcded4; border-radius: 12px; }
-QFrame#topBar { background: #163c33; border-radius: 12px; }
-QLabel#brand { color: #ffffff; font-size: 25px; font-weight: 700; }
-QLabel#accountName { color: #d9ebe3; }
-QLabel#hero { color: #163c33; font-size: 34px; font-weight: 700; }
-QLabel#heading { color: #163c33; font-size: 20px; font-weight: 700; }
-QLabel#muted { color: #53665c; }
-QLabel#total { color: #163c33; font-size: 23px; font-weight: 700; }
-QPushButton {
-    background: #f8f9f5; color: #23483b; border: 1px solid #cbd5cc;
-    border-radius: 6px; padding: 7px 12px; font-weight: 600;
-}
-QPushButton:hover { background: #eaf1e9; border-color: #7c9e8c; }
-QPushButton:focus { border-color: #39735d; }
-QPushButton:pressed { background: #dce9de; }
-QPushButton[variant="primary"] { background: #23604d; color: white; border-color: #23604d; }
-QPushButton[variant="primary"]:hover { background: #194c3d; border-color: #194c3d; }
-QPushButton[variant="primary"]:focus { border-color: #b0d2bc; }
-QPushButton[variant="header"] { background: #224c41; color: white; border-color: #78998a; }
-QPushButton[variant="header"]:hover { background: #356453; }
-QPushButton:disabled, QPushButton[variant="primary"]:disabled, QPushButton[variant="header"]:disabled {
-    color: #66736a; background: #ebeee8; border-color: #d9ded5;
-}
-QLineEdit, QSpinBox, QPlainTextEdit, QTextBrowser {
-    background: #ffffff; border: 1px solid #ccd5cc; border-radius: 6px;
-    padding: 6px; selection-background-color: #cde4d8; selection-color: #163c33;
-}
-QLineEdit:focus, QSpinBox:focus, QPlainTextEdit:focus, QTextBrowser:focus { border-color: #39735d; }
-QTabWidget::pane { border: 0; }
-QTabBar::tab {
-    background: #e8ebe3; color: #3d5448; border-radius: 6px; padding: 9px 16px; margin-right: 5px;
-}
-QTabBar::tab:selected { background: #d9e9dd; color: #163c33; font-weight: 700; }
-QTabBar::tab:hover { background: #dfe9df; }
-QTableWidget {
-    background: #ffffff; alternate-background-color: #f6f8f4;
-    selection-background-color: #d8ecdf; selection-color: #163c33;
-    border: 1px solid #d8dfd6; border-radius: 5px;
-}
-QTableWidget::item { padding-left: 5px; padding-right: 5px; }
-QHeaderView::section {
-    background: #eef2ec; color: #314c3e; font-weight: 700;
-    border: none; border-bottom: 1px solid #d8dfd6; padding: 7px 6px;
-}
-QSplitter::handle { background: transparent; width: 8px; }
-QStatusBar { background: #e8ede5; color: #3d5448; }
-QProgressBar { border: 0; background: #dce6dd; border-radius: 3px; }
-QProgressBar::chunk { background: #39735d; border-radius: 3px; }
-"""
 
 
 def label(text="", style=None):
@@ -103,10 +51,10 @@ def table(columns, stretch_columns=(0,)):
     widget.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
     widget.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
     widget.setAlternatingRowColors(True)
-    widget.setShowGrid(False)
+    widget.setShowGrid(True)
     widget.setWordWrap(False)
     widget.verticalHeader().hide()
-    widget.verticalHeader().setDefaultSectionSize(33)
+    widget.verticalHeader().setDefaultSectionSize(38)
     header = widget.horizontalHeader()
     header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
     for column in stretch_columns:
@@ -114,7 +62,7 @@ def table(columns, stretch_columns=(0,)):
     return widget
 
 
-def fill_table(widget, rows, numeric_columns=()):
+def fill_table(widget, rows, numeric_columns=(), status_column=None):
     widget.clearSelection()
     widget.setRowCount(len(rows))
     for column in range(widget.columnCount()):
@@ -127,6 +75,8 @@ def fill_table(widget, rows, numeric_columns=()):
             item.setToolTip(f"<qt>{escape(text)}</qt>")
             if column in numeric_columns:
                 item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            if column == status_column:
+                style_status_cell(item)
             widget.setItem(row_number, column, item)
 
 
@@ -156,6 +106,12 @@ def text_browser():
     return widget
 
 
+def invoice_browser():
+    widget = text_browser()
+    widget.setObjectName("invoicePreview")
+    return widget
+
+
 def show_error(parent, title, text):
     message = QMessageBox(parent)
     message.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
@@ -170,16 +126,7 @@ def show_error(parent, title, text):
 def create_application():
     application = QApplication(sys.argv)
     application.setApplicationName("Online Bookstore")
-    application.setStyle("Fusion")
-    font = application.font()
-    available = set(QFontDatabase.families())
-    for family in ("Inter", "DM Sans", "Roboto", "Segoe UI", "Arial"):
-        if family in available:
-            font.setFamily(family)
-            break
-    font.setPointSize(10)
-    application.setFont(font)
-    application.setStyleSheet(STYLESHEET)
+    apply_modern_theme(application)
     return application
 
 
@@ -278,8 +225,8 @@ class InvoiceDialog(QDialog):
         }.get(order["email_status"], order["email_status"])
         form.addRow("Email notification", label(status))
         layout.addLayout(form)
-        self.preview = text_browser()
-        self.preview.setHtml(order["bill_html_content"])
+        self.preview = invoice_browser()
+        style_invoice_preview(self.preview, order["bill_html_content"])
         layout.addWidget(self.preview, 1)
         actions = QHBoxLayout()
         actions.addStretch()

@@ -34,11 +34,15 @@ class ReportsView(QWidget):
         summaries = QHBoxLayout()
         summaries.setSpacing(10)
         self.totals = {}
-        for key, title in (("total_orders", "Total Orders"), ("total_revenue", "Total Revenue"),
-                           ("paid_revenue", "Paid Revenue")):
+        for key, title, accent in (
+            ("total_orders", "Total Orders", "orders"),
+            ("total_revenue", "Total Revenue", "revenue"),
+            ("paid_revenue", "Paid Revenue", "paid"),
+        ):
             card, contents = surface()
+            card.setProperty("kpi", accent)
             contents.addWidget(label(title, "muted"))
-            self.totals[key] = label("—", "total")
+            self.totals[key] = label("—", "kpiValue")
             contents.addWidget(self.totals[key])
             summaries.addWidget(card, 1)
         layout.addLayout(summaries)
@@ -103,7 +107,7 @@ class ReportsView(QWidget):
                 (order["order_id"], order["username"], local_date(order["created_at"]),
                  order["payment_status"], money(order["total_amount"]))
                 for order in report["orders_in_period"]
-            ], numeric_columns=(0, 4))
+            ], numeric_columns=(0, 4), status_column=3)
             fill_table(self.sales_table, [
                 (rank, book["book_title"], book["author"], book["total_units"], money(book["total_sales"]))
                 for rank, book in enumerate(report["best_sellers"], 1)

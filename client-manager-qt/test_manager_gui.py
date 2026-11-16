@@ -6,7 +6,6 @@ from threading import Event, get_ident
 from time import monotonic
 import unittest
 from unittest.mock import patch
-from uuid import uuid4
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 if os.name == "nt" and "SystemRoot" in os.environ:
@@ -16,6 +15,9 @@ from PyQt6.QtCore import QDate, QTimer
 from PyQt6.QtGui import QDesktopServices
 from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QMessageBox
+from bson import ObjectId
+from dotenv import dotenv_values
+from pymongo import MongoClient
 
 from manager_app import ManagerWindow
 from desktop_common.api import ApiWorker, PROJECT_ROOT
@@ -108,13 +110,35 @@ class ManagerSmokeTest(unittest.TestCase):
         self.assertTrue(all(thread != main_thread for _, _, thread in worker_calls))
 
     def check_workspace(self):
+        settings = {**dotenv_values(PROJECT_ROOT / ".env"), **os.environ}
+        book_ids = []
+        send = ApiWorker._send
+
+        def track_created_book(worker):
+            result = send(worker)
+            if worker.method == "POST" and worker.url.endswith("/api/manager/books") and result.status == 201:
+                book_ids.append(ObjectId(result.data["id"]))
+            return result
+
+        with MongoClient(settings.get("MONGO_URI", "mongodb://127.0.0.1:27017/"), serverSelectionTimeoutMS=5000) as mongo:
+            books = mongo[settings.get("MONGO_DB", "bookstore_mongo")].books
+            try:
+                with patch.object(ApiWorker, "_send", track_created_book):
+                    self.check_inventory_and_orders()
+            finally:
+                # Wait for an in-flight create response before deleting its exact MongoDB ID.
+                self.wait_for(lambda: not self.window.progress.isVisible(), "Inventory requests did not finish")
+                if book_ids:
+                    books.delete_many({"_id": {"$in": book_ids}})
+
+    def check_inventory_and_orders(self):
         inventory = self.window.inventory
         self.window.tabs.setCurrentWidget(inventory)
         self.wait_for(lambda: inventory.book_table.rowCount() > 0, "Inventory did not load")
-        title = f"Manager GUI test {uuid4().hex[:12]}"
+        title = "The Pragmatic Programmer"
         inventory.forms.setCurrentWidget(inventory.add_form)
         inventory.add_form.title.setText(title)
-        inventory.add_form.author.setText("Manager smoke test")
+        inventory.add_form.author.setText("Andrew Hunt & David Thomas")
         inventory.add_form.buy_price.setValue(11.50)
         inventory.add_form.rent_price.setValue(3.25)
         inventory.add_form.copies.setValue(4)
@@ -145,6 +169,10 @@ class ManagerSmokeTest(unittest.TestCase):
         orders.order_table.selectRow(row)
         self.assertIn(title, orders.preview.toPlainText())
         self.assertIn("Pending", orders.preview.toPlainText())
+        self.assertEqual(orders.preview.objectName(), "invoicePreview")
+        receipt_html = orders.preview.document().toHtml().lower()
+        self.assertIn("#ffffff", receipt_html)
+        self.assertIn("#111111", receipt_html)
         bill = PROJECT_ROOT / order["bill_html_path"]
         self.assertTrue(bill.is_file())
         with patch.object(QDesktopServices, "openUrl", return_value=True) as browser:

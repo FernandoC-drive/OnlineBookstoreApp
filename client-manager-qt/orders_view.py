@@ -1,12 +1,13 @@
 """Order listing, invoice preview, and payment status updates."""
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QComboBox, QHBoxLayout, QSplitter, QTextEdit, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QHBoxLayout, QSplitter, QTextEdit, QVBoxLayout, QWidget
 
 from desktop_common.widgets import (
-    button, fill_table, label, local_date, money, open_saved_bill, selected_row, show_error, surface, table,
-    text_browser,
+    button, fill_table, invoice_browser, label, local_date, money, open_saved_bill, selected_row, show_error,
+    surface, table,
 )
+from shared_ui.theme import ModernComboBox, style_invoice_preview
 
 
 class OrdersView(QWidget):
@@ -41,7 +42,7 @@ class OrdersView(QWidget):
         card.setMinimumWidth(305)
         self.invoice_heading = label("Invoice preview", "heading")
         invoice.addWidget(self.invoice_heading)
-        self.preview = text_browser()
+        self.preview = invoice_browser()
         self.preview.setLineWrapMode(QTextEdit.LineWrapMode.FixedPixelWidth)
         self.preview.setLineWrapColumnOrWidth(580)
         self.preview.setPlaceholderText("Select an order to view its invoice.")
@@ -50,14 +51,14 @@ class OrdersView(QWidget):
         invoice.addWidget(self.open_button)
         actions = QHBoxLayout()
         status_label = label("Payment status")
-        self.status = QComboBox()
+        self.status = ModernComboBox()
         self.status.addItems(("Pending", "Paid"))
         self.status.setAccessibleName("Payment status")
         status_label.setBuddy(self.status)
         actions.addWidget(status_label)
         actions.addWidget(self.status, 1)
         invoice.addLayout(actions)
-        self.update_button = button("Update Payment Status", self.update_status, "primary")
+        self.update_button = button("Update Payment Status", self.update_status, "success")
         invoice.addWidget(self.update_button)
         panes.addWidget(card)
         panes.setSizes([760, 440])
@@ -93,7 +94,7 @@ class OrdersView(QWidget):
                 )
                 rows.append((order["order_id"], order["username"], order["email"], local_date(order["created_at"]),
                              items, money(order["total_amount"]), order["payment_status"]))
-            fill_table(self.order_table, rows, numeric_columns=(0, 5))
+            fill_table(self.order_table, rows, numeric_columns=(0, 5), status_column=6)
             for row, order in enumerate(self.orders):
                 if order["order_id"] == order_id:
                     self.order_table.selectRow(row)
@@ -113,7 +114,7 @@ class OrdersView(QWidget):
         if order:
             self.status.setCurrentText(order["payment_status"])
             self.invoice_heading.setText(f"Invoice · Order {order['order_id']}")
-            self.preview.setHtml(order.get("bill_html_content") or "<p>Invoice unavailable.</p>")
+            style_invoice_preview(self.preview, order.get("bill_html_content") or "<p>Invoice unavailable.</p>")
         else:
             self.invoice_heading.setText("Invoice preview")
             self.preview.clear()

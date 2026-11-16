@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from desktop_common.api import ApiClient
 from desktop_common.widgets import button, create_application, label, show_error, surface
+from shared_ui.theme import style_pill
 from inventory_view import InventoryView
 from orders_view import OrdersView
 from reports_view import ReportsView
@@ -49,12 +50,17 @@ class ManagerWindow(QMainWindow):
         layout = QVBoxLayout(page)
         layout.addStretch()
         self.login_card, card = surface()
-        self.login_card.setFixedWidth(476)
+        self.login_card.setFixedWidth(440)
         card.setContentsMargins(28, 24, 28, 24)
+        card.setSpacing(12)
+        badge = label("MANAGER")
+        style_pill(badge, "manager")
+        card.addWidget(badge, 0, Qt.AlignmentFlag.AlignLeft)
         card.addWidget(label("Online Bookstore", "hero"))
         card.addWidget(label("Manager sign-in", "muted"))
         form = QFormLayout()
         form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+        form.setSpacing(10)
         self.username = QLineEdit()
         self.password = QLineEdit()
         self.password.setEchoMode(QLineEdit.EchoMode.Password)
@@ -82,9 +88,10 @@ class ManagerWindow(QMainWindow):
         bar.setContentsMargins(17, 12, 17, 12)
         bar.addWidget(label("Bookstore Management", "brand"))
         bar.addStretch()
-        self.account_name = label("", "accountName")
+        self.account_name = label()
+        style_pill(self.account_name, "manager")
         bar.addWidget(self.account_name)
-        self.logout_button = button("Logout", self.logout, "header")
+        self.logout_button = button("Logout", self.logout, "danger")
         bar.addWidget(self.logout_button)
         layout.addWidget(top)
 
@@ -135,7 +142,8 @@ class ManagerWindow(QMainWindow):
         self.token = data["token"]
         self.generation += 1
         name = data.get("username")
-        self.account_name.setText(name if isinstance(name, str) else self.username.text().strip())
+        username = name if isinstance(name, str) else self.username.text().strip()
+        self.account_name.setText(f"MANAGER: {username}")
         self.pages.setCurrentWidget(self.workspace)
         self.refresh_tab()
 
