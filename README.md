@@ -1,72 +1,139 @@
-# Online Bookstore
+# Online Bookstore System
 
-A CSCE 310 project with separate native PyQt6 applications for customers and managers. Customers can search, review, buy, and rent books and view their invoices. Managers can administer payments, update inventory, and run sales reports.
+A full-stack native desktop application for browsing, purchasing, renting, and managing books. Built with a polyglot microservices backend (**Java 17 `HttpServer`** + **Python Flask**), dual database persistence (**MySQL** + **MongoDB**), and two separate native desktop GUI clients built with **PyQt6**.
 
-## Architecture
+---
 
-| Component | Default address | Responsibility |
-| --- | --- | --- |
-| [Java User Service](user-service-java/) | 127.0.0.1:8001 | Registration, bcrypt passwords, login, logout, and profiles |
-| [Flask Book and Order Service](book-order-flask/) | 127.0.0.1:8002 | Catalog, reviews, checkout, invoices, inventory, and reporting |
-| MySQL | 127.0.0.1:3306 | Users, bearer-token sessions, orders, and order items in `bookstore_db` |
-| MongoDB | 127.0.0.1:27017 | Books, available copies, and reviews in `bookstore_mongo.books` |
+## Key Features
 
-Both desktop apps run HTTP requests in a Qt thread pool. The Java service creates the session, and both backends use the same MySQL session table to check access. See [SPEC.md](SPEC.md) for the API contract and schemas.
+### Customer Storefront (`client-customer-qt`)
+* **Account Management & Security**: Self-service account registration with valid email validation, secure `bcrypt` password hashing, and persistent session authentication until explicit logout.
+* **Catalog Search & Reviews**: Real-time keyword search matching book titles and authors, displaying prices, available stock, and average star ratings. Customers can read community reviews and submit 1–5 star ratings and comments.
+* **Combined Buy & Rent Cart**: Add multiple titles to a single cart as either a **Purchase (`BUY`)** or **Rental (`RENT`)** and check out in one transaction.
+* **Automated HTML Invoices & Email Receipts**: Every order automatically generates a printable black-and-white HTML invoice saved to `bills/bill_order_<id>.html` and dispatches an email copy to the customer's registered email address.
+* **User Profile & Order History**: View account metadata alongside complete past order history and live payment status (`Pending` vs. `Paid`).
 
-## Local setup on Windows
+### Manager Operations Portal (`client-manager-qt`)
+* **Strict Role Isolation**: Dedicated administrative desktop interface inaccessible to standard customer accounts.
+* **Order & Payment Administration**: View all customer orders across the system, preview or open printable HTML invoices in a browser, and update order payment statuses from `Pending` to `Paid`.
+* **Inventory Management**: Add new books to the catalog or update prices and available copy counts in real time.
+* **Sales Reports & Best-Seller Analytics**: Filter orders by date range to view summary KPIs (**Total Orders**, **Total Revenue**, **Paid Revenue**) and a ranked **Best-Selling Books** leaderboard.
 
-Install Python 3.11, a Java 17 or newer JDK, Maven, MySQL Server, and MongoDB Community Server. Start MySQL and MongoDB locally before running the setup. If installed as Windows services, start them in the Windows Services console.
+---
 
-From the repository root in PowerShell, create your configuration if you do not already have a `.env`. Set `MYSQL_USER` and `MYSQL_PASSWORD` to your local credentials.
+## System Architecture
 
-```powershell
-Copy-Item .env.example .env
-notepad .env
+```text
+┌──────────────────────────────────────────────────────────────────────┐
+│                 Native PyQt6 Desktop Clients (Async)                 │
+│   ┌──────────────────────┐              ┌────────────────────────┐   │
+│   │  Customer Storefront │              │   Manager Operations   │   │
+│   └──────────┬───────────┘              └───────────┬────────────┘   │
+└──────────────┼──────────────────────────────────────┼────────────────┘
+               │           REST / JSON + Bearer Token │
+       ┌───────▼────────────────┐            ┌────────▼───────────────┐
+       │   Java 17 HttpServer   │            │   Python Flask API     │
+       │   User Service (:8001) │            │ Book & Order (:8002)   │
+       └───────┬────────────────┘            └───┬────────────────┬───┘
+               │                                 │                │
+               └──────────────┬──────────────────┘                │
+                              ▼                                   ▼
+                 ┌─────────────────────────┐         ┌─────────────────────────┐
+                 │     MySQL (:3306)       │         │    MongoDB (:27017)     │
+                 │  users, sessions,       │         │  books catalog &        │
+                 │  orders, order_items    │         │  embedded reviews       │
+                 └─────────────────────────┘         └─────────────────────────┘
 ```
 
-Create the virtual environment, install the dependencies, and initialize both databases.
-
-```powershell
-py -3.11 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r db-init/requirements.txt -r book-order-flask/requirements.txt -r client-manager-qt/requirements.txt
-.\.venv\Scripts\python.exe db-init/setup_databases.py
-mvn -f user-service-java/pom.xml package
+### Project Structure
+```text
+OnlineBookstoreApp/
+├── run_bookstore.py         # Single-command launcher (starts backends + Portal UI)
+├── portal_app.py            # Unified Launcher Portal window
+├── run_customer_app.py      # Standalone Customer Storefront launcher
+├── run_manager_app.py       # Standalone Manager Portal launcher
+├── SPEC.md                  # Master API, schema, and architecture specification
+├── db-init/                 # MySQL schema & MongoDB/MySQL seeding script
+├── user-service-java/       # Java 17 HttpServer authentication & profile service (:8001)
+├── book-order-flask/        # Python Flask catalog, ordering, billing & analytics API (:8002)
+├── client-customer-qt/      # Native PyQt6 Customer desktop GUI
+├── client-manager-qt/       # Native PyQt6 Manager desktop GUI
+└── shared_ui/               # Shared modern dark theme, custom icons, and async helpers
 ```
 
-The manager requirements include the customer requirements, so one install covers both clients. Rerun the database setup to verify or restore the seed accounts and add missing seed books. Git ignores `.env` and generated invoices. Leave SMTP credentials blank to skip email delivery during local testing.
+---
 
-## Launch the desktop apps
+## Prerequisites
 
-From the repository root, open the bookstore portal with one command.
+1. **Python 3.10+**
+2. **Java 17+** and **Apache Maven**
+3. **MySQL Server** running locally on `127.0.0.1:3306`
+4. **MongoDB Community Server** running locally on `127.0.0.1:27017`
 
-```powershell
-.\.venv\Scripts\python.exe run_bookstore.py
+---
+
+## Setup & Installation
+
+### 1. Configure Environment Variables
+Copy `.env.example` to `.env` in the project root and update your local MySQL credentials (and optional SMTP credentials if you want live email delivery):
+```bash
+cp .env.example .env
 ```
 
-The portal shows live service status and opens the Customer and Manager apps in independent windows. You can open both from the same portal. Each app has its own sign-in and enforces its account role.
+### 2. Install Python Dependencies
+Create and activate a virtual environment, then install the dependencies for database setup, Flask, and PyQt6:
+```bash
+python -m venv .venv
 
-To open either app directly, use its standalone launcher.
+# Windows (Git Bash):
+source .venv/Scripts/activate
+# Windows (PowerShell):
+# .\.venv\Scripts\Activate.ps1
 
-```powershell
-.\.venv\Scripts\python.exe run_customer_app.py
-.\.venv\Scripts\python.exe run_manager_app.py
+pip install -r db-init/requirements.txt
+pip install -r book-order-flask/requirements.txt
+pip install -r client-customer-qt/requirements.txt
 ```
 
-All three launchers reuse healthy services, start any missing services in the background, and wait for them to respond. If the Java JAR is missing, the launcher builds it with Maven. Service logs are in `db-data/customer-launcher/`. Open saved invoices from `bills/` in the default browser for printing.
-
-| App | Seeded username | Seeded password |
-| --- | --- | --- |
-| Customer | `customer1` | `password123` |
-| Manager | `manager1` | `admin123` |
-
-## Run the GUI smoke tests
-
-With Java and Flask running against the seeded databases, use a separate PowerShell terminal. The tests exercise the live services and create uniquely named test records.
-
-```powershell
-$env:QT_QPA_PLATFORM = 'offscreen'
-.\.venv\Scripts\python.exe test_portal_gui.py
-.\.venv\Scripts\python.exe client-customer-qt/test_customer_gui.py
-.\.venv\Scripts\python.exe client-manager-qt/test_manager_gui.py
-Remove-Item Env:QT_QPA_PLATFORM
+### 3. Initialize & Seed the Databases
+Ensure your local MySQL and MongoDB services are running, then execute the setup script to create `bookstore_db`, build all relational tables, seed test accounts, and populate the MongoDB book catalog:
+```bash
+python db-init/setup_databases.py
 ```
+
+### 4. Compile the Java User Service
+```bash
+cd user-service-java
+mvn clean package -DskipTests
+cd ..
+```
+
+---
+
+## Running the Application
+
+### Option A: Single-Command Unified Launcher (Recommended)
+Run one command from the project root to automatically verify/start both backend services (`:8001` and `:8002`) and open the **Unified Launcher Portal**:
+```bash
+./.venv/Scripts/python.exe run_bookstore.py
+```
+From the Portal window, click **Launch Customer App** or **Launch Manager App** (you can open both windows side-by-side).
+
+### Option B: Launch Each Desktop Client Individually
+* **Customer Storefront only:**
+  ```bash
+  ./.venv/Scripts/python.exe run_customer_app.py
+  ```
+* **Manager Operations Portal only:**
+  ```bash
+  ./.venv/Scripts/python.exe run_manager_app.py
+  ```
+
+---
+
+## Default Test Accounts
+
+| Role | Username | Password |
+| :--- | :--- | :--- |
+| **Customer** | `customer1` | `password123` |
+| **Manager** | `manager1` | `admin123` |
